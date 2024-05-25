@@ -24,7 +24,9 @@ public class InputHandler : MonoBehaviour
 		playerInputAction.Player.Movement.performed += i => moveInput = i.ReadValue<Vector2>();
 		playerInputAction.Player.Look.performed += i => lookInput = i.ReadValue<Vector2>();
 		playerInputAction.Player.Jump.performed += (obj) => jumpInput = true;
+		playerInputAction.Player.Jump.canceled += (obj) => jumpInput = false;
 		playerInputAction.Player.Hook.performed += (obj) => hookInput = true;
+		playerInputAction.Player.Hook.canceled += (obj) => hookInput = false;
 		playerInputAction.Player.Sprint.performed += (obj) => sprintInput = true;
 		playerInputAction.Player.Sprint.canceled += (obj) => sprintInput = false;
 	}
@@ -39,27 +41,13 @@ public class InputHandler : MonoBehaviour
 		playerInputAction.Dispose();
     }
 
-	public void HandleAllInputs()
-	{
-		//HandleJumpInput();
-		//HandleHookInput();
-	}
+	//public void UseHookInput()
+	//{
+	//	hookInput = false;
+	//}
 
-	private void HandleJumpInput()
-    {
-  //      if (jumpInput)
-		//{
-		//	jumpInput = false;
-		//}
-    }
-
-	public void UseHookInput()
-	{
-		hookInput = false;
-	}
-
-	public void UseJumpInput()
-	{
-		jumpInput = false;
-	}
+	//public void UseJumpInput()
+	//{
+	//	jumpInput = false;
+	//}
 }

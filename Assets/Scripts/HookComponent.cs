@@ -8,10 +8,13 @@ public class HookComponent : MonoBehaviour
     [SerializeField] private Transform cam;
     [SerializeField] private LayerMask whatIsHookable;
     [SerializeField] private Transform startingPoint;  // 甩出绳索的起点
+    [SerializeField] private HookableVisual visual;
 
     public float maxReachingDistance;   // 绳索能到的最远距离
-    public float delayTime;    // 直到玩家被拉走的时间间隔
+    public float delayTime = 1;    // 直到玩家被拉走的时间间隔
 
+    private Vector3 currentEnd;
+    private float thresholdAngle = 60;
     private int detectRange = 40;
     private PlayerLocomotion playerLocomotion;
     private LineRenderer lr;
@@ -19,13 +22,29 @@ public class HookComponent : MonoBehaviour
     //private float hookCooldownTimer;
     private Vector3 hitPoint;   // 勾中目标位置
     private SpringJoint joint;
+    private GameObject prevDetectedObject;
 
+    GameObject hookableToJumpTo = null;
     public bool isDuringHook;  // 是否处于钩锁状态
 
     private void Awake()
     {
         playerLocomotion = GetComponent<PlayerLocomotion>();
         lr = startingPoint.GetComponent<LineRenderer>();
+    }
+
+    private void Update()
+    {
+        CheckHookable();
+        if (!InputHandler.Instance.hookInput || hookableToJumpTo == null) return;
+        Throw();
+    }
+
+    private void LateUpdate()
+    {
+        //DrawRope();
+        if (!isDuringHook) return;
+        lr.SetPosition(0, startingPoint.position);
     }
 
     public Vector3 GetHitPoint()
@@ -38,17 +57,8 @@ public class HookComponent : MonoBehaviour
         return startingPoint;
     }
 
-    public void HookStatusUpdate()
+    public void CheckHookable()
     {
-        // 只按一个键的场景下直接用在Update里用KeyDown比InputHandler好用多了...但是不想混用input system
-        if (InputHandler.Instance.hookInput) {
-            Throw();
-            InputHandler.Instance.UseHookInput();
-        }
-        //if (hookCooldownTimer > 0)
-        //{
-        //    hookCooldownTimer -= Time.deltaTime;
-        //}
         GameObject objectToSelect = null;
 
         Collider[] detectResults = Physics.OverlapSphere(transform.position, detectRange, whatIsHookable);
@@ -56,69 +66,65 @@ public class HookComponent : MonoBehaviour
         foreach (Collider collider in detectResults)
         {
             Vector3 directionToHitColliderFromCamera = collider.transform.position - cam.position;
-            float angleToCameraForward = Vector3.Angle(cam.forward, directionToHitColliderFromCamera);
-            if (angleToCameraForward < minAngle)
+            float angle = Vector3.Angle(directionToHitColliderFromCamera, cam.forward);
+            if (angle < thresholdAngle && angle < minAngle)
             {
-                minAngle = angleToCameraForward;
+                minAngle = angle;
                 objectToSelect = collider.gameObject;
             }
         }
-        if (objectToSelect == null) return;
-        if (minAngle > cam.GetComponent<Camera>().fieldOfView / 2)
+
+        if (objectToSelect == null)
+        {
+            hookableToJumpTo = null;
+            visual.ClearAllTargets();
+            return;
+        }
+
+        Vector3 objectPos = Camera.main.WorldToViewportPoint(objectToSelect.transform.position);
+        if (objectPos.x > 1 || objectPos.x < 0 || objectPos.y > 1 || objectPos.y < 0)
         {
             // indicator
+            visual.SetIndicatorTarget(objectToSelect);
+            visual.ClearMarkTarget();
             //Debug.Log("indicator");
             //Debug.Log(objectToSelect.name);
         } else
         {
             // mark
+            hookableToJumpTo = objectToSelect;
+            hitPoint = objectToSelect.transform.position;
+            visual.SetMarkTarget(objectToSelect);
+            visual.ClearIndicatorTarget();
             //Debug.Log("mark");
             //Debug.Log(objectToSelect.name);
         }
     }
 
-    private void SelectHitPoint(GameObject gameObject)
+    IEnumerator ShootLine()
     {
-        
-    }
+        float elapsedTime = 0f;
+        while (elapsedTime < delayTime)
+        {
+            elapsedTime += Time.deltaTime;
+            float t = elapsedTime / delayTime;
 
-    public void HookStatusLateUpdate()
-    {
-        if (!isDuringHook) return;
-        lr.SetPosition(0, startingPoint.position);
+            Vector3 currentPos = Vector3.Lerp(startingPoint.position, hitPoint, t);
+            lr.SetPosition(1, currentPos);
+
+            yield return null;
+        }
+        lr.SetPosition(1, hitPoint);
     }
 
     public void Throw()
     {
-        //if (hookCooldownTimer > 0) { return; }
+        if (hookableToJumpTo == null) return;
+        isDuringHook = true;
         playerLocomotion.SetFreeze(true);
-        if (Physics.Raycast(cam.position, cam.forward, out RaycastHit hit, maxReachingDistance, whatIsHookable))
-        {
-            hitPoint = hit.point;
-
-            //joint = startingPoint.gameObject.AddComponent<SpringJoint>();
-            //joint.autoConfigureConnectedAnchor = false;
-            //joint.connectedAnchor = hitPoint;
-
-            //float distanceFromPoint = Vector3.Distance(startingPoint.position, hitPoint);
-
-            //joint.maxDistance = distanceFromPoint * 0.8f;
-            //joint.minDistance = distanceFromPoint * 0.25f;
-
-            //joint.spring = 4.5f;
-            //joint.damper = 7f;
-            //joint.massScale = 4.5f;
-
-            isDuringHook = true;
-            Invoke(nameof(Process), delayTime);
-        }
-        else
-        {
-            hitPoint = cam.position + cam.forward * maxReachingDistance;
-            Invoke(nameof(Stop), delayTime);
-        }
         lr.enabled = true;
-        lr.SetPosition(1, hitPoint);
+        StartCoroutine(ShootLine());
+        Invoke(nameof(Process), delayTime);
     }
 
     public void Process()
@@ -139,9 +145,8 @@ public class HookComponent : MonoBehaviour
     {
         playerLocomotion.SetFreeze(false);
         isDuringHook = false;
-        //hookCooldownTimer = hookCooldown;
         lr.enabled = false;
-        //Destroy(joint);
+        //InputHandler.Instance.UseHookInput();
     }
 
     //private void OnDrawGizmos()

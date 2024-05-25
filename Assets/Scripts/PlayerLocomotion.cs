@@ -47,8 +47,7 @@ public class PlayerLocomotion : MonoBehaviour
 
     public void HandleAllMovements()
     {
-        // 第二个费时间找问题的点：斜抛运动老是跳不到指定点，是因为这里忘了确认isDuringHook导致CheckFall被调用影响速度。
-        // 还是Input System的选择问题，用Keydown多简单。
+        // 第二个费时间找问题的点：斜抛运动老是跳不到指定点，是因为忘了确认isDuringHook导致CheckFall被调用影响速度。
         if (isFreezing || hookComponent.isDuringHook) return;
         CheckMove();
         CheckJump();
@@ -57,7 +56,7 @@ public class PlayerLocomotion : MonoBehaviour
 
     public void CheckMove()
     {
-        if (collisionSense.Grounded && !hookComponent.isDuringHook)
+        if (collisionSense.Grounded)
         {
             Vector2 movementInput = InputHandler.Instance.moveInput;
             // 设置Player向抓钩点的速度后一直静止的原因...没有check输入是否为0向量，导致设置速度后立马被设置成0，找了好久。
@@ -89,7 +88,7 @@ public class PlayerLocomotion : MonoBehaviour
             {
                 float velocityY = Mathf.Sqrt(-2 * jumpHeight * gravity);
                 rb.velocity = new Vector3(rb.velocity.x, velocityY, rb.velocity.z);
-                InputHandler.Instance.UseJumpInput();
+                //InputHandler.Instance.UseJumpInput();
             }
         }
     }
@@ -99,7 +98,7 @@ public class PlayerLocomotion : MonoBehaviour
         if (!collisionSense.Grounded)
         {
             inAirTimer += Time.deltaTime;
-            rb.AddForce(2 * gravity * inAirTimer * Vector3.up);
+            rb.AddForce(3 * gravity * inAirTimer * Vector3.up);
         } else
         {
             //isJumping = false;
