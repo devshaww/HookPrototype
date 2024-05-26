@@ -3,10 +3,10 @@ using UnityEngine;
 public class CollisionSense : MonoBehaviour
 {
     [SerializeField]
-    private float groundCheckRadius, wallCheckDistance;
+    private float groundCheckRadius;
 
     [SerializeField]
-    private LayerMask whatIsGround, whatIsWall;
+    private LayerMask whatIsGround;
 
     public bool isGrounded;
 

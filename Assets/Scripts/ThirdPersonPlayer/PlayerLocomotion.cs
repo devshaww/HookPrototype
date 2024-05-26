@@ -11,11 +11,20 @@ public class PlayerLocomotion : MonoBehaviour
     private HookComponent hookComponent;
     private Rigidbody rb;
     private float inAirTimer;
+    private bool enableMovementOnNextCollision;
+    private bool hookActive;
+    public State state;
 
+    public enum State {
+        Idle,
+        Walking,
+        Jumping,
+        UsingHook
+    };
     public bool isSprinting;
     public bool isWalking;
     public bool isFreezing;
-    //public bool isJumping;
+    public bool isJumping;
     public float jumpHeight = 3f;
     public float gravity = -15f;
 
@@ -30,6 +39,16 @@ public class PlayerLocomotion : MonoBehaviour
         collisionSense = GetComponent<CollisionSense>();
         rb = GetComponent<Rigidbody>();
         mainCamera = Camera.main.transform;
+    }
+
+    private void Start()
+    {
+        state = State.Idle;
+    }
+
+    public State GetState()
+    {
+        return state;
     }
 
     public void SetFreeze(bool freeze)
@@ -48,7 +67,7 @@ public class PlayerLocomotion : MonoBehaviour
     public void HandleAllMovements()
     {
         // 第二个费时间找问题的点：斜抛运动老是跳不到指定点，是因为忘了确认isDuringHook导致CheckFall被调用影响速度。
-        if (isFreezing || hookComponent.isDuringHook) return;
+        if (isFreezing || hookActive) return;
         CheckMove();
         CheckJump();
         CheckFall();
@@ -59,14 +78,21 @@ public class PlayerLocomotion : MonoBehaviour
         if (collisionSense.Grounded)
         {
             Vector2 movementInput = InputHandler.Instance.moveInput;
-            // 设置Player向抓钩点的速度后一直静止的原因...没有check输入是否为0向量，导致设置速度后立马被设置成0，找了好久。
+            if (movementInput != Vector2.zero)
+                // 设置Player向抓钩点的速度后一直静止的原因...没有check输入是否为0向量，导致设置速度后立马被设置成0，找了好久。
             isSprinting = InputHandler.Instance.sprintInput;
             moveDirection = mainCamera.forward * movementInput.y + mainCamera.right * movementInput.x;
             moveDirection.Normalize();
             moveDirection.y = 0;
 
             isWalking = moveDirection != Vector3.zero;
- 
+            if (isWalking)
+            {
+                state = State.Walking;
+            } else
+            {
+                state = State.Idle;
+            }
             rb.velocity = isSprinting ? moveDirection * sprintSpeed : moveDirection * moveSpeed;
 
             //Quaternion targetRotation = Quaternion.LookRotation(moveDirection);
@@ -75,8 +101,9 @@ public class PlayerLocomotion : MonoBehaviour
         }
         else
         {
-            isWalking = false;
+            //state = State.Jumping;
             isSprinting = false;
+            isWalking = false;
         }
     }
 
@@ -88,7 +115,7 @@ public class PlayerLocomotion : MonoBehaviour
             {
                 float velocityY = Mathf.Sqrt(-2 * jumpHeight * gravity);
                 rb.velocity = new Vector3(rb.velocity.x, velocityY, rb.velocity.z);
-                //InputHandler.Instance.UseJumpInput();
+                state = State.Jumping;
             }
         }
     }
@@ -101,20 +128,22 @@ public class PlayerLocomotion : MonoBehaviour
             rb.AddForce(3 * gravity * inAirTimer * Vector3.up);
         } else
         {
-            //isJumping = false;
             inAirTimer = 0;
         }
     }
 
-    private void SetVelocity()
+    private void SetVelocityForHookAction()
     {
         rb.velocity = velocityToSetUsingHook;
+        enableMovementOnNextCollision = true;
     }
 
     public void JumpToPosition(Vector3 targetPosition, float trajectoryMaxHeight)
     {
+        hookActive = true;
+        state = State.UsingHook;
         velocityToSetUsingHook = CalculateJumpVelocity(transform.position, targetPosition, trajectoryMaxHeight);
-        Invoke(nameof(SetVelocity), .1f);
+        Invoke(nameof(SetVelocityForHookAction), .1f);
     }
 
     private Vector3 CalculateJumpVelocity(Vector3 start, Vector3 end, float trajectoryMaxHeight)
@@ -125,5 +154,14 @@ public class PlayerLocomotion : MonoBehaviour
         Vector3 velocityY = Vector3.up * Mathf.Sqrt(-2 * gravity * trajectoryMaxHeight);
         Vector3 velocityXZ = distanceXZ / (Mathf.Sqrt(-2 * trajectoryMaxHeight / gravity) + Mathf.Sqrt(2 * (distanceY - trajectoryMaxHeight) / gravity));
         return velocityXZ + velocityY;
+    }
+
+    private void OnCollisionEnter(Collision collision)
+    {
+        if (enableMovementOnNextCollision)
+        {
+            hookActive = false;
+            hookComponent.Stop();
+        }
     }
 }

@@ -15,4 +15,4 @@ Fix jump to point.
 
 * **Day 5**    
 	* Spring on Rope **(not confident)**.
-	* Tidy up.
+	* Tidy and pack things up.

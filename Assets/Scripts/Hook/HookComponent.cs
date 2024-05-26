@@ -1,5 +1,4 @@
 using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 
 public class HookComponent : MonoBehaviour
@@ -11,26 +10,23 @@ public class HookComponent : MonoBehaviour
     [SerializeField] private HookableVisual visual;
 
     public float maxReachingDistance;   // 绳索能到的最远距离
-    public float delayTime = 1;    // 直到玩家被拉走的时间间隔
+    public float delayTime = 1f;    // 直到玩家被拉走的时间间隔
 
     private Vector3 currentEnd;
     private float thresholdAngle = 60;
     private int detectRange = 40;
     private PlayerLocomotion playerLocomotion;
-    private LineRenderer lr;
-    //private float hookCooldown = 1;
-    //private float hookCooldownTimer;
-    private Vector3 hitPoint;   // 勾中目标位置
-    private SpringJoint joint;
-    private GameObject prevDetectedObject;
+    //private LineRenderer lr;
+    private Vector3 hitPoint;   // 已选中目标
+    private float playerDetectRange = 5;
 
-    GameObject hookableToJumpTo = null;
+    GameObject hookableToJumpTo = null; // 探测到的目标 不一定已被选中
     public bool isDuringHook;  // 是否处于钩锁状态
 
     private void Awake()
     {
         playerLocomotion = GetComponent<PlayerLocomotion>();
-        lr = startingPoint.GetComponent<LineRenderer>();
+        //lr = startingPoint.GetComponent<LineRenderer>();
     }
 
     private void Update()
@@ -44,7 +40,7 @@ public class HookComponent : MonoBehaviour
     {
         //DrawRope();
         if (!isDuringHook) return;
-        lr.SetPosition(0, startingPoint.position);
+        //lr.SetPosition(0, startingPoint.position);
     }
 
     public Vector3 GetHitPoint()
@@ -65,6 +61,10 @@ public class HookComponent : MonoBehaviour
         float minAngle = Mathf.Infinity;
         foreach (Collider collider in detectResults)
         {
+            // 确认是否是当前勾中点以及是否已跳到其附近
+            float distance = Vector3.Distance(GetComponent<Player>().transform.position, collider.transform.position);
+            if (distance < playerDetectRange) continue;
+            //if (collider.transform.position == hitPoint) continue;
             Vector3 directionToHitColliderFromCamera = collider.transform.position - cam.position;
             float angle = Vector3.Angle(directionToHitColliderFromCamera, cam.forward);
             if (angle < thresholdAngle && angle < minAngle)
@@ -92,8 +92,14 @@ public class HookComponent : MonoBehaviour
         } else
         {
             // mark
+            if (hitPoint == objectToSelect.transform.position)
+            {
+                visual.ClearMarkTarget();
+                visual.ClearIndicatorTarget();
+                return;
+            }
             hookableToJumpTo = objectToSelect;
-            hitPoint = objectToSelect.transform.position;
+            //hitPoint = objectToSelect.transform.position;
             visual.SetMarkTarget(objectToSelect);
             visual.ClearIndicatorTarget();
             //Debug.Log("mark");
@@ -101,52 +107,51 @@ public class HookComponent : MonoBehaviour
         }
     }
 
-    IEnumerator ShootLine()
+    //IEnumerator ShootLine()
+    //{
+    //    float elapsedTime = 0f;
+    //    while (elapsedTime < delayTime)
+    //    {
+    //        elapsedTime += Time.deltaTime;
+    //        float t = elapsedTime / delayTime;
+
+    //        Vector3 currentPos = Vector3.Lerp(startingPoint.position, hitPoint, t);
+    //        lr.SetPosition(1, currentPos);
+
+    //        yield return null;
+    //    }
+    //    lr.SetPosition(1, hitPoint);
+    //}
+
+    private void Throw()
     {
-        float elapsedTime = 0f;
-        while (elapsedTime < delayTime)
-        {
-            elapsedTime += Time.deltaTime;
-            float t = elapsedTime / delayTime;
-
-            Vector3 currentPos = Vector3.Lerp(startingPoint.position, hitPoint, t);
-            lr.SetPosition(1, currentPos);
-
-            yield return null;
-        }
-        lr.SetPosition(1, hitPoint);
-    }
-
-    public void Throw()
-    {
-        if (hookableToJumpTo == null) return;
+        hitPoint = hookableToJumpTo.transform.position;
         isDuringHook = true;
         playerLocomotion.SetFreeze(true);
-        lr.enabled = true;
-        StartCoroutine(ShootLine());
+        //lr.enabled = true;
+        //StartCoroutine(ShootLine());
         Invoke(nameof(Process), delayTime);
     }
 
-    public void Process()
+    private void Process()
     {
         playerLocomotion.SetFreeze(false);
-        Vector3 startPoint = new Vector3(transform.position.x, transform.position.y - 1, transform.position.z);
-        float hitPointToStartPointYOffset = hitPoint.y - startPoint.y;
-        float highestPointOnTrajectory = hitPointToStartPointYOffset + overshootY;
-        if (hitPointToStartPointYOffset < 0)
+        Vector3 lowerPoint = new Vector3(transform.position.x, transform.position.y - 1, transform.position.z);
+        float hitPointToLowerPointYOffset = hitPoint.y - lowerPoint.y;
+        float highestPointOnTrajectory = hitPointToLowerPointYOffset + overshootY;
+        if (hitPointToLowerPointYOffset < 0)
         {
-            highestPointOnTrajectory = overshootY;
+            highestPointOnTrajectory = 0;
         }
         playerLocomotion.JumpToPosition(hitPoint, highestPointOnTrajectory);
-        Invoke(nameof(Stop), 2);
+        Invoke(nameof(Stop), 1f);
     }
 
     public void Stop()
     {
         playerLocomotion.SetFreeze(false);
         isDuringHook = false;
-        lr.enabled = false;
-        //InputHandler.Instance.UseHookInput();
+        //lr.enabled = false;
     }
 
     //private void OnDrawGizmos()
